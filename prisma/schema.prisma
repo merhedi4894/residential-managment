@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "sqlite"
+  url       = env("DATABASE_URL")
+}
+
+// Buildings in the residential area
+model Building {
+  id             String   @id @default(cuid())
+  name           String
+  totalFloors    Int
+  capacityPerRoom Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  floors             Floor[]
+  belongingTemplates BelongingTemplate[]
+}
+
+// Floors in a building
+model Floor {
+  id         String    @id @default(cuid())
+  floorNumber Int
+  buildingId String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  building   Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  rooms      Room[]
+
+  @@index([buildingId])
+}
+
+// Rooms on a floor
+model Room {
+  id            String          @id @default(cuid())
+  roomNumber    String
+  floorId       String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  floor         Floor           @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  tenants       Tenant[]
+  inventories   Inventory[]
+  troubleReports TroubleReport[]
+  vacateRecords VacateRecord[]
+  inventorySnapshots InventorySnapshot[]
+
+  @@index([floorId])
+}
+
+// Tenants occupying rooms
+model Tenant {
+  id            String          @id @default(cuid())
+  name          String
+  designation   String?
+  phone         String?
+  roomId        String
+  startDate     DateTime
+  endDate       DateTime?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  room          Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  inventories   Inventory[]
+  vacateRecords VacateRecord[]
+  inventorySnapshots InventorySnapshot[]
+
+  @@index([roomId])
+}
+
+// Inventory items in a room - tracks items per tenant occupancy
+model Inventory {
+  id          String   @id @default(cuid())
+  itemName    String
+  quantity    Int
+  condition   String   @default("ভালো") // ভালো, মাঝারি, খারাপ
+  roomNumber  String
+  tenantId    String?
+  roomId      String
+  addedDate   DateTime @default(now())
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([roomId])
+  @@index([tenantId])
+}
+
+// Inventory snapshots taken when a tenant is assigned or vacates a room
+model InventorySnapshot {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenantName       String
+  roomId           String
+  roomNumber       String
+  snapshotType     String   @default("assign")
+  inventorySnapshot String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  room             Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@index([roomId])
+  @@index([tenantId])
+}
+
+// System users for authentication
+model User {
+  id               String   @id @default(cuid())
+  username         String   @unique
+  password         String
+  securityQuestion String
+  securityAnswer   String
+  sessionToken     String?
+  isSetup          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([sessionToken])
+}
+
+// Trouble reports for rooms
+model TroubleReport {
+  id          String    @id @default(cuid())
+  roomNumber  String
+  roomId      String
+  description String
+  reportedBy  String
+  reportedAt  DateTime  @default(now())
+  status      String    @default("পেন্ডিং") // পেন্ডিং, চলমান, সমাধান হয়েছে
+  resolvedAt  DateTime?
+  resolutionNote String?
+  resolvedBy  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+}
+
+// Vacate records when tenant leaves
+model VacateRecord {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenantName       String
+  roomId           String
+  roomNumber       String
+  vacatedAt        DateTime @default(now())
+  inventorySnapshot String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  room             Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@index([roomId])
+  @@index([tenantId])
+}
+
+// Belonging templates per building - default items for all rooms
+model BelongingTemplate {
+  id         String   @id @default(cuid())
+  buildingId String
+  itemName   String
+  quantity   Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@index([buildingId])
+}
+
+// Guest management
+model Guest {
+  id            String    @id @default(cuid())
+  name          String
+  address       String?
+  mobile        String?
+  referredBy    String?
+  checkInDate   DateTime
+  checkInTime   String?
+  checkOutDate  DateTime?
+  checkOutTime  String?
+  totalBill     String?
+  note          String?
+  isPaid        Boolean   @default(true)
+  isBooked      Boolean   @default(false)
+  roomId        String?
+  roomNumber    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([roomId])
+  @@index([checkInDate])
+}
